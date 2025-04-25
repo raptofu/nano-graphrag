@@ -822,29 +822,46 @@ async def _build_local_query_context(
     text_chunks_db: BaseKVStorage[TextChunkSchema],
     query_param: QueryParam,
 ):
+    logger.info(f"Querying entities_vdb with query: {query}")
     results = await entities_vdb.query(query, top_k=query_param.top_k)
+    logger.info(f"entities_vdb returned {len(results)} results")
     if not len(results):
+        logger.info("No results found in entities_vdb")
         return None
-    node_datas = await knowledge_graph_inst.get_nodes_batch([r["entity_name"] for r in results])
+
+    entity_names = [r["entity_name"] for r in results]
+    logger.info(f"Fetching node data for entities: {entity_names}")
+    node_datas = await knowledge_graph_inst.get_nodes_batch(entity_names)
     if not all([n is not None for n in node_datas]):
         logger.warning("Some nodes are missing, maybe the storage is damaged")
-    node_degrees = await knowledge_graph_inst.node_degrees_batch([r["entity_name"] for r in results])
+    node_degrees = await knowledge_graph_inst.node_degrees_batch(entity_names)
     node_datas = [
         {**n, "entity_name": k["entity_name"], "rank": d}
         for k, n, d in zip(results, node_datas, node_degrees)
         if n is not None
     ]
+    logger.info(f"Found {len(node_datas)} valid node datas")
+
+    logger.info("Finding most related communities")
     use_communities = await _find_most_related_community_from_entities(
         node_datas, query_param, community_reports
     )
+    logger.info(f"Found {len(use_communities)} related communities")
+
+    logger.info("Finding most related text units")
     use_text_units = await _find_most_related_text_unit_from_entities(
         node_datas, query_param, text_chunks_db, knowledge_graph_inst
     )
+    logger.info(f"Found {len(use_text_units)} related text units")
+
+    logger.info("Finding most related relations")
     use_relations = await _find_most_related_edges_from_entities(
         node_datas, query_param, knowledge_graph_inst
     )
+    logger.info(f"Found {len(use_relations)} related relations")
+
     logger.info(
-        f"Using {len(node_datas)} entites, {len(use_communities)} communities, {len(use_relations)} relations, {len(use_text_units)} text units"
+        f"Using {len(node_datas)} entities, {len(use_communities)} communities, {len(use_relations)} relations, {len(use_text_units)} text units"
     )
     entites_section_list = [["id", "entity", "type", "description", "rank"]]
     for i, n in enumerate(node_datas):
@@ -884,6 +901,8 @@ async def _build_local_query_context(
     for i, t in enumerate(use_text_units):
         text_units_section_list.append([i, t["content"]])
     text_units_context = list_of_list_to_csv(text_units_section_list)
+
+    logger.info("Local query context built successfully")
     return f"""
 -----Reports-----
 ```csv
@@ -913,6 +932,7 @@ async def local_query(
     query_param: QueryParam,
     global_config: dict,
 ) -> str:
+    logger.info("Starting local_query")
     use_model_func = global_config["best_model_func"]
     context = await _build_local_query_context(
         query,
@@ -922,20 +942,24 @@ async def local_query(
         text_chunks_db,
         query_param,
     )
+    logger.info("Local query context built")
     if query_param.only_need_context:
+        logger.info("Returning only context as requested")
         return context
     if context is None:
+        logger.info("Context is None, returning fail response")
         return PROMPTS["fail_response"]
     sys_prompt_temp = PROMPTS["local_rag_response"]
     sys_prompt = sys_prompt_temp.format(
         context_data=context, response_type=query_param.response_type
     )
+    logger.info("Calling model function for local query response")
     response = await use_model_func(
         query,
         system_prompt=sys_prompt,
     )
+    logger.info("Local query completed")
     return response
-
 
 async def _map_global_communities(
     query: str,
