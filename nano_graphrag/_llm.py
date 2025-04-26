@@ -203,7 +203,6 @@ async def amazon_bedrock_embedding(texts: list[str]) -> np.ndarray:
             embeddings.append(json.loads(response_body))
     return np.array([dp["embedding"] for dp in embeddings])
 
-
 @wrap_embedding_func_with_attrs(embedding_dim=1536, max_token_size=8192)
 @retry(
     stop=stop_after_attempt(5),
@@ -213,10 +212,9 @@ async def amazon_bedrock_embedding(texts: list[str]) -> np.ndarray:
 async def openai_embedding(texts: list[str]) -> np.ndarray:
     openai_async_client = get_openai_async_client_instance()
     response = await openai_async_client.embeddings.create(
-        model="text-embedding-3-large", input=texts, encoding_format="float"
+        model="text-embedding-3-large", input=texts, encoding_format="float", dimensions=3072
     )
     return np.array([dp.embedding for dp in response.data])
-
 
 @retry(
     stop=stop_after_attempt(3),
