@@ -306,6 +306,7 @@ async def extract_entities(
         record_delimiter=PROMPTS["DEFAULT_RECORD_DELIMITER"],
         completion_delimiter=PROMPTS["DEFAULT_COMPLETION_DELIMITER"],
         entity_types=",".join(PROMPTS["DEFAULT_ENTITY_TYPES"]),
+        relationship_types=",".join(PROMPTS["DEFAULT_RELATIONSHIP_TYPES"]),
     )
     continue_prompt = PROMPTS["entiti_continue_extraction"]
     if_loop_prompt = PROMPTS["entiti_if_loop_extraction"]

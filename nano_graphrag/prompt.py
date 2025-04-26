@@ -155,10 +155,11 @@ Format: ("entity"{tuple_delimiter}<entity_name>{tuple_delimiter}<entity_type>{tu
 2. Identify all pairs of related entities. For each, extract:
 - source_entity: name from step 1
 - target_entity: name from step 1
+- relationship_type: one of [{relationship_types}] (e.g., "has_exception", "applies_to", "parameter", "modifies", "has_condition", "reference")
 - relationship_description: why/how the entities are related (e.g. "Exception permits penetration of fire barrier")
 - relationship_strength: integer 1-10 (10 = explicit, 1 = weak/implicit)
 
-Format: ("relationship"{tuple_delimiter}<source_entity>{tuple_delimiter}<target_entity>{tuple_delimiter}<relationship_description>{tuple_delimiter}<relationship_strength>)
+Format: ("relationship"{tuple_delimiter}<source_entity>{tuple_delimiter}<target_entity>{tuple_delimiter}<relationship_type>{tuple_delimiter}<relationship_description>{tuple_delimiter}<relationship_strength>)
 
 3. Return a single list of all entities and relationships, using **{record_delimiter}** as delimiter.
 
@@ -222,10 +223,26 @@ PROMPTS[
 ] = """It appears some entities may have still been missed.  Answer YES | NO if there are still entities that need to be added.
 """
 
-PROMPTS["DEFAULT_ENTITY_TYPES"] = ["organization", "person", "geo", "event"]
+PROMPTS["DEFAULT_ENTITY_TYPES"] = [
+    "rule",
+    "exception",
+    "condition",
+    "code_section",
+    "revit_category",
+    "revit_parameter"
+]
 PROMPTS["DEFAULT_TUPLE_DELIMITER"] = "<|>"
 PROMPTS["DEFAULT_RECORD_DELIMITER"] = "##"
 PROMPTS["DEFAULT_COMPLETION_DELIMITER"] = "<|COMPLETE|>"
+
+PROMPTS["DEFAULT_RELATIONSHIP_TYPES"] = [
+    "has_exception",
+    "modifies",
+    "applies_to",
+    "parameter",
+    "has_condition",
+    "reference"
+]
 
 PROMPTS[
     "local_rag_response"
@@ -237,6 +254,7 @@ You are a helpful assistant responding to questions about data in the tables pro
 ---Goal---
 
 Generate a response of the target length and format that responds to the user's question, summarizing all information in the input data tables appropriate for the response length and format, and incorporating any relevant general knowledge.
+
 If you don't know the answer, just say so. Do not make anything up.
 Do not include information where the supporting evidence for it is not provided.
 
