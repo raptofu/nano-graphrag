@@ -213,7 +213,7 @@ async def amazon_bedrock_embedding(texts: list[str]) -> np.ndarray:
 async def openai_embedding(texts: list[str]) -> np.ndarray:
     openai_async_client = get_openai_async_client_instance()
     response = await openai_async_client.embeddings.create(
-        model="text-embedding-3-small", input=texts, encoding_format="float"
+        model="text-embedding-3-large", input=texts, encoding_format="float"
     )
     return np.array([dp.embedding for dp in response.data])
 
