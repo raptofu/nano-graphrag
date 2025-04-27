@@ -315,6 +315,15 @@ async def _parse_json_entities(final_result, chunk_key):
                         or obj.get("parameter_name")
                         or ""
                     )
+                    code_version = obj.get("CODEVERSION", "2022-10")
+                    section = obj.get("section", "UNKNOWN")
+                    shorttag = obj.get("shorttag", "UNKNOWN")
+                    obj["CODEVERSION"] = code_version
+                    obj["codeversion"] = code_version
+                    obj["SECTION"] = section
+                    obj["section"] = section
+                    obj["SHORTTAG"] = shorttag
+                    obj["shorttag"] = shorttag
                     maybe_nodes[entity_name].append(
                         {
                             "entity_name": entity_name,
@@ -345,47 +354,47 @@ async def _parse_tuple_entities(
     history = pack_user_ass_to_openai_messages(
         hint_prompt, final_result, using_amazon_bedrock
     )
-        for now_glean_index in range(entity_extract_max_gleaning):
-            glean_result = await use_llm_func(continue_prompt, history_messages=history)
+    for now_glean_index in range(entity_extract_max_gleaning):
+        glean_result = await use_llm_func(continue_prompt, history_messages=history)
         history += pack_user_ass_to_openai_messages(
             continue_prompt, glean_result, using_amazon_bedrock
         )
-            final_result += glean_result
-            if now_glean_index == entity_extract_max_gleaning - 1:
-                break
-            if_loop_result: str = await use_llm_func(
-                if_loop_prompt, history_messages=history
-            )
-            if_loop_result = if_loop_result.strip().strip('"').strip("'").lower()
-            if if_loop_result != "yes":
-                break
-
-        records = split_string_by_multi_markers(
-            final_result,
-            [context_base["record_delimiter"], context_base["completion_delimiter"]],
+        final_result += glean_result
+        if now_glean_index == entity_extract_max_gleaning - 1:
+            break
+        if_loop_result: str = await use_llm_func(
+            if_loop_prompt, history_messages=history
         )
+        if_loop_result = if_loop_result.strip().strip('"').strip("'").lower()
+        if if_loop_result != "yes":
+            break
 
-        for record in records:
-            record = re.search(r"\((.*)\)", record)
-            if record is None:
-                continue
-            record = record.group(1)
-            record_attributes = split_string_by_multi_markers(
-                record, [context_base["tuple_delimiter"]]
-            )
-            if_entities = await _handle_single_entity_extraction(
-                record_attributes, chunk_key
-            )
-            if if_entities is not None:
-                maybe_nodes[if_entities["entity_name"]].append(if_entities)
-                continue
+    records = split_string_by_multi_markers(
+        final_result,
+        [context_base["record_delimiter"], context_base["completion_delimiter"]],
+    )
 
-            if_relation = await _handle_single_relationship_extraction(
-                record_attributes, chunk_key
-            )
-            if if_relation is not None:
-                maybe_edges[(if_relation["src_id"], if_relation["tgt_id"])].append(
-                    if_relation
+    for record in records:
+        record = re.search(r"\((.*)\)", record)
+        if record is None:
+            continue
+        record = record.group(1)
+        record_attributes = split_string_by_multi_markers(
+            record, [context_base["tuple_delimiter"]]
+        )
+        if_entities = await _handle_single_entity_extraction(
+            record_attributes, chunk_key
+        )
+        if if_entities is not None:
+            maybe_nodes[if_entities["entity_name"]].append(if_entities)
+            continue
+
+        if_relation = await _handle_single_relationship_extraction(
+            record_attributes, chunk_key
+        )
+        if if_relation is not None:
+            maybe_edges[(if_relation["src_id"], if_relation["tgt_id"])].append(
+                if_relation
             )
     return dict(maybe_nodes), dict(maybe_edges)
 
