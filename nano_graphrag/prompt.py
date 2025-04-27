@@ -170,7 +170,7 @@ Given a building code or architectural standards text, extract all rules and par
 -Example Output-
 ######################
 [
-  {
+  {{
     "type": "rule",
     "rule_id": "IBC2021-1014-6-HREXT-TERM",
     "code_reference_id": "IBC2021-1014-6",
@@ -178,20 +178,20 @@ Given a building code or architectural standards text, extract all rules and par
     "description": "Handrails must return to a wall, guard, or walking surface, or continue to an adjacent handrail.",
     "condition_type": "Choice",
     "condition_logic": "Handrail must EITHER terminate at an approved attachment OR continue to an adjacent handrail."
-  },
-  {
+  }},
+  {{
     "type": "parameter",
     "parameter_id": "IBC2021-1014-6-P1-TERM",
     "rule_id": "IBC2021-1014-6-HREXT-TERM",
     "parameter_name": "Handrail Termination Attachment Points",
     "RuleType": "Enumerated",
-    "value": "{\"allowed_attachments\":[\"wall\",\"guard\",\"walking_surface\"]}",
+    "value": "{{\\\"allowed_attachments\\\":[\\\"wall\\\",\\\"guard\\\",\\\"walking_surface\\\"]}}",
     "MeasuredFrom": "",
     "MeasuredTo": "",
     "unit": "N/A",
-    "applicable_scenarios": "{\"applicable_scenarios\":[\"termination\"]}",
+    "applicable_scenarios": "{{\\\"applicable_scenarios\\\":[\\\"termination\\\"]}}",
     "notes": "Handrails must terminate at an approved attachment point"
-  }
+  }}
   // ... other entities as needed ...
 ]
 
