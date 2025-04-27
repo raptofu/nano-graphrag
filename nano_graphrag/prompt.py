@@ -143,7 +143,7 @@ PROMPTS[
 Given a building code or architectural standards text, extract all rules and parameters as structured JSON objects, following the schemas below.
 
 - For each rule, extract:
-  - "rule_id": Format as "{CODEVERSION}-{SECTION}-{SHORTTAG}"
+  - "rule_id": Format as "{CODEVERSION}-{{SECTION}}-{{SHORTTAG}}"
   - "code_reference_id": Format as "{CODEVERSION}-{SECTION}"
   - "rule_name": Short title summarizing the requirement.
   - "description": Paraphrased version of the prescriptive text.
