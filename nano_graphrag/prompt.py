@@ -151,7 +151,7 @@ Given a building code or architectural standards text, extract all rules and par
   - "condition_logic": Express the logic in plain, concise terms.
 
 - For each parameter, extract:
-  - "parameter_id": Format as "{code_reference_id}-P#-{SHORTTAG}"
+  - "parameter_id": Format as "{{code_reference_id}}-P#-{SHORTTAG}"
   - "rule_id": Must match the rule_id
   - "parameter_name": Short descriptive name
   - "RuleType": One of ["Dimensional", "Enumerated", "Textual"] or blank
