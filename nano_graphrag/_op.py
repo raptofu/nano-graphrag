@@ -152,19 +152,27 @@ async def _handle_single_entity_extraction(
 ):
     if len(record_attributes) < 4 or record_attributes[0] != '"entity"':
         return None
-    # add this record as a node in the G
     entity_name = clean_str(record_attributes[1].upper())
     if not entity_name.strip():
         return None
     entity_type = clean_str(record_attributes[2].upper())
     entity_description = clean_str(record_attributes[3])
     entity_source_id = chunk_key
-    return dict(
-        entity_name=entity_name,
-        entity_type=entity_type,
-        description=entity_description,
-        source_id=entity_source_id,
-    )
+    code_version = "2022-10"
+    section = "UNKNOWN"
+    shorttag = "UNKNOWN"
+    return {
+        "entity_name": entity_name,
+        "entity_type": entity_type,
+        "description": entity_description,
+        "source_id": entity_source_id,
+        "CODEVERSION": code_version,
+        "codeversion": code_version,
+        "SECTION": section,
+        "section": section,
+        "SHORTTAG": shorttag,
+        "shorttag": shorttag,
+    }
 
 
 async def _handle_single_relationship_extraction(
@@ -315,9 +323,9 @@ async def _parse_json_entities(final_result, chunk_key):
                         or obj.get("parameter_name")
                         or ""
                     )
-                    code_version = obj.get("CODEVERSION", "2022-10")
-                    section = obj.get("section", "UNKNOWN")
-                    shorttag = obj.get("shorttag", "UNKNOWN")
+                    code_version = obj.get("CODEVERSION", obj.get("codeversion", "2022-10"))
+                    section = obj.get("SECTION", obj.get("section", "UNKNOWN"))
+                    shorttag = obj.get("SHORTTAG", obj.get("shorttag", "UNKNOWN"))
                     obj["CODEVERSION"] = code_version
                     obj["codeversion"] = code_version
                     obj["SECTION"] = section
