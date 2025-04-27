@@ -220,33 +220,63 @@ async def _merge_nodes_then_upsert(
 
     already_node = await knwoledge_graph_inst.get_node(entity_name)
     if already_node is not None:
-        already_entitiy_types.append(already_node["entity_type"])
+        # Ensure entity_type exists and is not empty before adding
+        node_type = already_node.get("entity_type")
+        if node_type:
+             already_entitiy_types.append(node_type)
         already_source_ids.extend(
-            split_string_by_multi_markers(already_node["source_id"], [GRAPH_FIELD_SEP])
+            split_string_by_multi_markers(already_node.get("source_id", ""), [GRAPH_FIELD_SEP])
         )
-        already_description.append(already_node["description"])
+        already_description.append(already_node.get("description", ""))
 
-    entity_type = sorted(
-        Counter(
-            [dp["entity_type"] for dp in nodes_data] + already_entitiy_types
-        ).items(),
-        key=lambda x: x[1],
-        reverse=True,
-    )[0][0]
-    description = GRAPH_FIELD_SEP.join(
-        sorted(set([dp["description"] for dp in nodes_data] + already_description))
+    # Safely get types, providing "UNKNOWN" if missing and filtering out empty strings
+    valid_types = [
+        dp.get("entity_type", "UNKNOWN") for dp in nodes_data if dp.get("entity_type")
+    ] + [t for t in already_entitiy_types if t]
+
+    type_counts = Counter(valid_types)
+
+    if type_counts:
+        # Sort by count (desc) and then alphabetically by type name for deterministic tie-breaking
+        entity_type = sorted(type_counts.items(), key=lambda item: (-item[1], item[0]))[0][0]
+    else:
+        # Default if no valid types were found at all
+        entity_type = "UNKNOWN"
+
+    # Safely get descriptions and source_ids
+    all_descriptions = set(
+        [dp.get("description", "") for dp in nodes_data if dp.get("description")] +
+        [desc for desc in already_description if desc]
     )
-    source_id = GRAPH_FIELD_SEP.join(
-        set([dp["source_id"] for dp in nodes_data] + already_source_ids)
+    description = GRAPH_FIELD_SEP.join(sorted(all_descriptions))
+
+    all_source_ids = set(
+        [dp.get("source_id", "") for dp in nodes_data if dp.get("source_id")] +
+        [sid for sid in already_source_ids if sid]
     )
-    description = await _handle_entity_relation_summary(
-        entity_name, description, global_config
-    )
+    source_id = GRAPH_FIELD_SEP.join(sorted(all_source_ids))
+
+    # Summarize only if description is not empty
+    if description:
+        description = await _handle_entity_relation_summary(
+            entity_name, description, global_config
+        )
+
     node_data = dict(
         entity_type=entity_type,
         description=description,
         source_id=source_id,
     )
+    # Ensure all keys from the original objects are preserved if needed, applying ensure_rule_keys
+    merged_obj_data = {}
+    if nodes_data:
+        # Merge data from the first node as a base (assuming relevant shared fields)
+        # Ensure rule keys are present
+        merged_obj_data = ensure_rule_keys(nodes_data[0])
+    # Update with calculated/merged values, potentially overwriting
+    node_data.update(merged_obj_data)
+
+
     await knwoledge_graph_inst.upsert_node(
         entity_name,
         node_data=node_data,
