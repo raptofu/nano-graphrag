@@ -167,10 +167,10 @@ async def _handle_single_entity_extraction(
         "description": entity_description,
         "source_id": entity_source_id,
         "CODEVERSION": code_version,
-        "codeversion": code_version,
         "SECTION": section,
-        "section": section,
         "SHORTTAG": shorttag,
+        "codeversion": code_version,
+        "section": section,
         "shorttag": shorttag,
     }
 
@@ -327,10 +327,10 @@ async def _parse_json_entities(final_result, chunk_key):
                     section = obj.get("SECTION", obj.get("section", "UNKNOWN"))
                     shorttag = obj.get("SHORTTAG", obj.get("shorttag", "UNKNOWN"))
                     obj["CODEVERSION"] = code_version
-                    obj["codeversion"] = code_version
                     obj["SECTION"] = section
-                    obj["section"] = section
                     obj["SHORTTAG"] = shorttag
+                    obj["codeversion"] = code_version
+                    obj["section"] = section
                     obj["shorttag"] = shorttag
                     maybe_nodes[entity_name].append(
                         {
