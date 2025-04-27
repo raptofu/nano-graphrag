@@ -345,47 +345,47 @@ async def _parse_tuple_entities(
     history = pack_user_ass_to_openai_messages(
         hint_prompt, final_result, using_amazon_bedrock
     )
-    for now_glean_index in range(entity_extract_max_gleaning):
-        glean_result = await use_llm_func(continue_prompt, history_messages=history)
+        for now_glean_index in range(entity_extract_max_gleaning):
+            glean_result = await use_llm_func(continue_prompt, history_messages=history)
         history += pack_user_ass_to_openai_messages(
             continue_prompt, glean_result, using_amazon_bedrock
         )
-        final_result += glean_result
-        if now_glean_index == entity_extract_max_gleaning - 1:
-            break
-        if_loop_result: str = await use_llm_func(
-            if_loop_prompt, history_messages=history
-        )
-        if_loop_result = if_loop_result.strip().strip('"').strip("'").lower()
-        if if_loop_result != "yes":
-            break
+            final_result += glean_result
+            if now_glean_index == entity_extract_max_gleaning - 1:
+                break
+            if_loop_result: str = await use_llm_func(
+                if_loop_prompt, history_messages=history
+            )
+            if_loop_result = if_loop_result.strip().strip('"').strip("'").lower()
+            if if_loop_result != "yes":
+                break
 
-    records = split_string_by_multi_markers(
-        final_result,
-        [context_base["record_delimiter"], context_base["completion_delimiter"]],
-    )
+        records = split_string_by_multi_markers(
+            final_result,
+            [context_base["record_delimiter"], context_base["completion_delimiter"]],
+        )
 
-    for record in records:
-        record = re.search(r"\((.*)\)", record)
-        if record is None:
-            continue
-        record = record.group(1)
-        record_attributes = split_string_by_multi_markers(
-            record, [context_base["tuple_delimiter"]]
-        )
-        if_entities = await _handle_single_entity_extraction(
-            record_attributes, chunk_key
-        )
-        if if_entities is not None:
-            maybe_nodes[if_entities["entity_name"]].append(if_entities)
-            continue
+        for record in records:
+            record = re.search(r"\((.*)\)", record)
+            if record is None:
+                continue
+            record = record.group(1)
+            record_attributes = split_string_by_multi_markers(
+                record, [context_base["tuple_delimiter"]]
+            )
+            if_entities = await _handle_single_entity_extraction(
+                record_attributes, chunk_key
+            )
+            if if_entities is not None:
+                maybe_nodes[if_entities["entity_name"]].append(if_entities)
+                continue
 
-        if_relation = await _handle_single_relationship_extraction(
-            record_attributes, chunk_key
-        )
-        if if_relation is not None:
-            maybe_edges[(if_relation["src_id"], if_relation["tgt_id"])].append(
-                if_relation
+            if_relation = await _handle_single_relationship_extraction(
+                record_attributes, chunk_key
+            )
+            if if_relation is not None:
+                maybe_edges[(if_relation["src_id"], if_relation["tgt_id"])].append(
+                    if_relation
             )
     return dict(maybe_nodes), dict(maybe_edges)
 
@@ -451,7 +451,7 @@ async def extract_entities(
             if_loop_prompt,
             using_amazon_bedrock,
             hint_prompt,
-        )
+                )
         already_processed += 1
         already_entities += len(maybe_nodes)
         already_relations += len(maybe_edges)
