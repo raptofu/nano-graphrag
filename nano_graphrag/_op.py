@@ -29,6 +29,14 @@ from .base import (
 from .prompt import GRAPH_FIELD_SEP, PROMPTS
 
 
+def ensure_rule_keys(d):
+    d = dict(d)
+    d["CODEVERSION"] = d.get("CODEVERSION", "2022-10")
+    d["SECTION"] = d.get("SECTION", "UNKNOWN")
+    d["SHORTTAG"] = d.get("SHORTTAG", "UNKNOWN")
+    return d
+
+
 def chunking_by_token_size(
     tokens_list: list[list[int]],
     doc_keys,
@@ -161,7 +169,7 @@ async def _handle_single_entity_extraction(
     code_version = "2022-10"
     section = "UNKNOWN"
     shorttag = "UNKNOWN"
-    return {
+    entity = {
         "entity_name": entity_name,
         "entity_type": entity_type,
         "description": entity_description,
@@ -173,6 +181,8 @@ async def _handle_single_entity_extraction(
         "section": section,
         "shorttag": shorttag,
     }
+    entity = ensure_rule_keys(entity)
+    return entity
 
 
 async def _handle_single_relationship_extraction(
@@ -332,13 +342,14 @@ async def _parse_json_entities(final_result, chunk_key):
                     obj["codeversion"] = code_version
                     obj["section"] = section
                     obj["shorttag"] = shorttag
+                    entity = ensure_rule_keys(obj)
                     maybe_nodes[entity_name].append(
                         {
                             "entity_name": entity_name,
                             "entity_type": entity_type,
                             "description": description,
                             "source_id": chunk_key,
-                            **obj,
+                            **entity,
                         }
                     )
                 # Edges: add logic here if you want to support explicit edges in JSON
@@ -394,15 +405,17 @@ async def _parse_tuple_entities(
             record_attributes, chunk_key
         )
         if if_entities is not None:
-            maybe_nodes[if_entities["entity_name"]].append(if_entities)
+            entity = ensure_rule_keys(if_entities)
+            maybe_nodes[entity["entity_name"]].append(entity)
             continue
 
         if_relation = await _handle_single_relationship_extraction(
             record_attributes, chunk_key
         )
         if if_relation is not None:
-            maybe_edges[(if_relation["src_id"], if_relation["tgt_id"])].append(
-                if_relation
+            entity = ensure_rule_keys(if_relation)
+            maybe_edges[(entity["src_id"], entity["tgt_id"])].append(
+                entity
             )
     return dict(maybe_nodes), dict(maybe_edges)
 
