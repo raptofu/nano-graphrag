@@ -140,56 +140,64 @@ Output:
 PROMPTS[
     "entity_extraction"
 ] = """-Goal-
-Given a building code or architectural standards text and a list of entity types, identify all entities of those types and all relationships among them.
+Given a building code or architectural standards text, extract all rules and parameters as structured JSON objects, following the schemas below.
 
--Steps-
-1. Identify all entities. For each, extract:
-- entity_name: Capitalized name of the entity (e.g. "Fire Barrier", "Section 707", "Exit Passageway", "Exception: Penetrations permitted")
-- entity_type: One of [{entity_types}]
-- entity_description: Concise description of the entity's attributes, requirements, or role in compliance
+- For each rule, extract:
+  - "rule_id": Format as "{CODEVERSION}-{SECTION}-{SHORTTAG}"
+  - "code_reference_id": Format as "{CODEVERSION}-{SECTION}"
+  - "rule_name": Short title summarizing the requirement.
+  - "description": Paraphrased version of the prescriptive text.
+  - "condition_type": One of ["Absolute", "Range", "Choice", "Simple"]
+  - "condition_logic": Express the logic in plain, concise terms.
 
-- If the text contains exceptions (e.g. "Exceptions: ..."), extract each exception as its own entity of type "exception", and clearly link it to the entity or rule it modifies.
+- For each parameter, extract:
+  - "parameter_id": Format as "{code_reference_id}-P#-{SHORTTAG}"
+  - "rule_id": Must match the rule_id
+  - "parameter_name": Short descriptive name
+  - "RuleType": One of ["Dimensional", "Enumerated", "Textual"] or blank
+  - "value": JSON structure or raw value depending on type
+  - "MeasuredFrom": Fill if mentioned in the code
+  - "MeasuredTo": Fill if mentioned in the code
+  - "unit": Use "inches", "feet", or "N/A"
+  - "applicable_scenarios": JSON string of contexts, or "N/A"
+  - "notes": Optional clarification
 
-Format: ("entity"{tuple_delimiter}<entity_name>{tuple_delimiter}<entity_type>{tuple_delimiter}<entity_description>)
+- For all other entities (exception, condition, code_section, revit_category, revit_parameter), extract as before.
 
-2. Identify all pairs of related entities. For each, extract:
-- source_entity: name from step 1
-- target_entity: name from step 1
-- relationship_type: one of [{relationship_types}] (e.g., "has_exception", "applies_to", "parameter", "modifies", "has_condition", "reference")
-- relationship_description: why/how the entities are related (e.g. "Exception permits penetration of fire barrier")
-- relationship_strength: integer 1-10 (10 = explicit, 1 = weak/implicit)
-
-Format: ("relationship"{tuple_delimiter}<source_entity>{tuple_delimiter}<target_entity>{tuple_delimiter}<relationship_type>{tuple_delimiter}<relationship_description>{tuple_delimiter}<relationship_strength>)
-
-3. Return a single list of all entities and relationships, using **{record_delimiter}** as delimiter.
-
-4. When finished, output {completion_delimiter}
+- Output a single JSON array of objects. Each object must have a "type" key (e.g., "rule", "parameter", "exception", etc.) and the relevant fields.
 
 ######################
--Examples-
+-Example Output-
 ######################
-Example 1:
-
-Entity_types: [building_element, code_reference, requirement, exception, location, category, parameter]
-Text:
-Where interior exit stairways and ramps are extended to an exit discharge or a public way by an exit passageway, the interior exit stairway and ramp shall be separated from the exit passageway by a fire barrier constructed in accordance with Section 707 or a horizontal assembly constructed in accordance with Section 711, or both. The fire-resistance rating shall be not less than that required for the interior exit stairway and ramp. A fire door assembly complying with Section 716 shall be installed in the fire barrier to provide a means of egress from the interior exit stairway and ramp to the exit passageway. Openings in the fire barrier other than the fire door assembly are prohibited. Penetrations of the fire barrier are prohibited. Exceptions: 1. Penetrations of the fire barrier in accordance with Section 1023.5 shall be permitted.
-
-Output:
-("entity"{tuple_delimiter}"Fire Barrier"{tuple_delimiter}"building_element"{tuple_delimiter}"A construction element required to separate exit passageways from interior exit stairways and ramps." ){record_delimiter}
-("entity"{tuple_delimiter}"Section 707"{tuple_delimiter}"code_reference"{tuple_delimiter}"Code section specifying requirements for fire barriers." ){record_delimiter}
-("entity"{tuple_delimiter}"Section 711"{tuple_delimiter}"code_reference"{tuple_delimiter}"Code section specifying requirements for horizontal assemblies." ){record_delimiter}
-("entity"{tuple_delimiter}"Fire Door Assembly"{tuple_delimiter}"building_element"{tuple_delimiter}"A door assembly required in the fire barrier to provide egress." ){record_delimiter}
-("entity"{tuple_delimiter}"Section 716"{tuple_delimiter}"code_reference"{tuple_delimiter}"Code section specifying requirements for fire door assemblies." ){record_delimiter}
-("entity"{tuple_delimiter}"Exception: Penetrations permitted per Section 1023.5"{tuple_delimiter}"exception"{tuple_delimiter}"Penetrations of the fire barrier are permitted if in accordance with Section 1023.5." ){record_delimiter}
-("relationship"{tuple_delimiter}"Fire Barrier"{tuple_delimiter}"Section 707"{tuple_delimiter}"Fire barrier must be constructed in accordance with Section 707."{tuple_delimiter}10){record_delimiter}
-("relationship"{tuple_delimiter}"Fire Barrier"{tuple_delimiter}"Section 711"{tuple_delimiter}"Fire barrier may also be a horizontal assembly per Section 711."{tuple_delimiter}8){record_delimiter}
-("relationship"{tuple_delimiter}"Fire Door Assembly"{tuple_delimiter}"Section 716"{tuple_delimiter}"Fire door assembly must comply with Section 716."{tuple_delimiter}10){record_delimiter}
-("relationship"{tuple_delimiter}"Exception: Penetrations permitted per Section 1023.5"{tuple_delimiter}"Fire Barrier"{tuple_delimiter}"Exception allows penetration of the fire barrier if compliant with Section 1023.5."{tuple_delimiter}10){completion_delimiter}
+[
+  {
+    "type": "rule",
+    "rule_id": "IBC2021-1014-6-HREXT-TERM",
+    "code_reference_id": "IBC2021-1014-6",
+    "rule_name": "Handrails must terminate/continue",
+    "description": "Handrails must return to a wall, guard, or walking surface, or continue to an adjacent handrail.",
+    "condition_type": "Choice",
+    "condition_logic": "Handrail must EITHER terminate at an approved attachment OR continue to an adjacent handrail."
+  },
+  {
+    "type": "parameter",
+    "parameter_id": "IBC2021-1014-6-P1-TERM",
+    "rule_id": "IBC2021-1014-6-HREXT-TERM",
+    "parameter_name": "Handrail Termination Attachment Points",
+    "RuleType": "Enumerated",
+    "value": "{\"allowed_attachments\":[\"wall\",\"guard\",\"walking_surface\"]}",
+    "MeasuredFrom": "",
+    "MeasuredTo": "",
+    "unit": "N/A",
+    "applicable_scenarios": "{\"applicable_scenarios\":[\"termination\"]}",
+    "notes": "Handrails must terminate at an approved attachment point"
+  }
+  // ... other entities as needed ...
+]
 
 ######################
 -Real Data-
 ######################
-Entity_types: {entity_types}
 Text: {input_text}
 ######################
 Output:

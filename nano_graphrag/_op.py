@@ -288,6 +288,108 @@ async def _merge_edges_then_upsert(
     )
 
 
+async def _parse_json_entities(final_result, chunk_key):
+    maybe_nodes = defaultdict(list)
+    maybe_edges = defaultdict(list)
+    try:
+        json_data = json.loads(final_result)
+        if isinstance(json_data, list):
+            for obj in json_data:
+                if obj.get("type") in {"rule", "parameter", "exception", "condition", "code_section", "revit_category", "revit_parameter"}:
+                    entity_name = (
+                        obj.get("rule_id")
+                        or obj.get("parameter_id")
+                        or obj.get("exception_name")
+                        or obj.get("name")
+                    )
+                    if not entity_name:
+                        entity_name = (
+                            obj.get("rule_name")
+                            or obj.get("parameter_name")
+                            or obj.get("description", "")[:32]
+                        )
+                    entity_type = obj.get("type", "UNKNOWN").upper()
+                    description = (
+                        obj.get("description")
+                        or obj.get("rule_name")
+                        or obj.get("parameter_name")
+                        or ""
+                    )
+                    maybe_nodes[entity_name].append(
+                        {
+                            "entity_name": entity_name,
+                            "entity_type": entity_type,
+                            "description": description,
+                            "source_id": chunk_key,
+                            **obj,
+                        }
+                    )
+                # Edges: add logic here if you want to support explicit edges in JSON
+            return dict(maybe_nodes), dict(maybe_edges)
+    except Exception:
+        return None, None
+
+async def _parse_tuple_entities(
+    final_result,
+    chunk_key,
+    context_base,
+    entity_extract_max_gleaning,
+    use_llm_func,
+    continue_prompt,
+    if_loop_prompt,
+    using_amazon_bedrock,
+    hint_prompt,
+):
+    maybe_nodes = defaultdict(list)
+    maybe_edges = defaultdict(list)
+    history = pack_user_ass_to_openai_messages(
+        hint_prompt, final_result, using_amazon_bedrock
+    )
+    for now_glean_index in range(entity_extract_max_gleaning):
+        glean_result = await use_llm_func(continue_prompt, history_messages=history)
+        history += pack_user_ass_to_openai_messages(
+            continue_prompt, glean_result, using_amazon_bedrock
+        )
+        final_result += glean_result
+        if now_glean_index == entity_extract_max_gleaning - 1:
+            break
+        if_loop_result: str = await use_llm_func(
+            if_loop_prompt, history_messages=history
+        )
+        if_loop_result = if_loop_result.strip().strip('"').strip("'").lower()
+        if if_loop_result != "yes":
+            break
+
+    records = split_string_by_multi_markers(
+        final_result,
+        [context_base["record_delimiter"], context_base["completion_delimiter"]],
+    )
+
+    for record in records:
+        record = re.search(r"\((.*)\)", record)
+        if record is None:
+            continue
+        record = record.group(1)
+        record_attributes = split_string_by_multi_markers(
+            record, [context_base["tuple_delimiter"]]
+        )
+        if_entities = await _handle_single_entity_extraction(
+            record_attributes, chunk_key
+        )
+        if if_entities is not None:
+            maybe_nodes[if_entities["entity_name"]].append(if_entities)
+            continue
+
+        if_relation = await _handle_single_relationship_extraction(
+            record_attributes, chunk_key
+        )
+        if if_relation is not None:
+            maybe_edges[(if_relation["src_id"], if_relation["tgt_id"])].append(
+                if_relation
+            )
+    return dict(maybe_nodes), dict(maybe_edges)
+
+
 async def extract_entities(
     chunks: dict[str, TextChunkSchema],
     knwoledge_graph_inst: BaseGraphStorage,
@@ -325,63 +427,43 @@ async def extract_entities(
         if isinstance(final_result, list):
             final_result = final_result[0]["text"]
 
-        history = pack_user_ass_to_openai_messages(hint_prompt, final_result, using_amazon_bedrock)
-        for now_glean_index in range(entity_extract_max_gleaning):
-            glean_result = await use_llm_func(continue_prompt, history_messages=history)
-
-            history += pack_user_ass_to_openai_messages(continue_prompt, glean_result, using_amazon_bedrock)
-            final_result += glean_result
-            if now_glean_index == entity_extract_max_gleaning - 1:
-                break
-
-            if_loop_result: str = await use_llm_func(
-                if_loop_prompt, history_messages=history
+        # Try JSON parsing first
+        maybe_nodes, maybe_edges = await _parse_json_entities(final_result, chunk_key)
+        if maybe_nodes is not None:
+            already_processed += 1
+            already_entities += len(maybe_nodes)
+            now_ticks = PROMPTS["process_tickers"][already_processed % len(ordered_chunks)]
+            print(
+                f"{now_ticks} Processed {already_processed}({already_processed*100//len(ordered_chunks)}%) chunks,  {already_entities} entities(duplicated)\r",
+                end="",
+                flush=True,
             )
-            if_loop_result = if_loop_result.strip().strip('"').strip("'").lower()
-            if if_loop_result != "yes":
-                break
+            return maybe_nodes, maybe_edges
 
-        records = split_string_by_multi_markers(
+        # Fallback: tuple/relationship parsing
+        maybe_nodes, maybe_edges = await _parse_tuple_entities(
             final_result,
-            [context_base["record_delimiter"], context_base["completion_delimiter"]],
+            chunk_key,
+            context_base,
+            entity_extract_max_gleaning,
+            use_llm_func,
+            continue_prompt,
+            if_loop_prompt,
+            using_amazon_bedrock,
+            hint_prompt,
         )
-
-        maybe_nodes = defaultdict(list)
-        maybe_edges = defaultdict(list)
-        for record in records:
-            record = re.search(r"\((.*)\)", record)
-            if record is None:
-                continue
-            record = record.group(1)
-            record_attributes = split_string_by_multi_markers(
-                record, [context_base["tuple_delimiter"]]
-            )
-            if_entities = await _handle_single_entity_extraction(
-                record_attributes, chunk_key
-            )
-            if if_entities is not None:
-                maybe_nodes[if_entities["entity_name"]].append(if_entities)
-                continue
-
-            if_relation = await _handle_single_relationship_extraction(
-                record_attributes, chunk_key
-            )
-            if if_relation is not None:
-                maybe_edges[(if_relation["src_id"], if_relation["tgt_id"])].append(
-                    if_relation
-                )
         already_processed += 1
         already_entities += len(maybe_nodes)
         already_relations += len(maybe_edges)
         now_ticks = PROMPTS["process_tickers"][
-            already_processed % len(PROMPTS["process_tickers"])
+            already_processed % len(ordered_chunks)
         ]
         print(
             f"{now_ticks} Processed {already_processed}({already_processed*100//len(ordered_chunks)}%) chunks,  {already_entities} entities(duplicated), {already_relations} relations(duplicated)\r",
             end="",
             flush=True,
         )
-        return dict(maybe_nodes), dict(maybe_edges)
+        return maybe_nodes, maybe_edges
 
     # use_llm_func is wrapped in ascynio.Semaphore, limiting max_async callings
     results = await asyncio.gather(
